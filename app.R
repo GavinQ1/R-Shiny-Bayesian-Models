@@ -82,6 +82,24 @@ poisson_tab <- function() {
   )
 }
 
+relops <- c("==", "<", ">", "<=", ">=", "!=")
+
+judge <- function(op, op1, op2) {
+  if (op == "==") {
+    op1 == op2
+  } else if (op == "<") {
+    op1 < op2
+  } else if (op == ">") {
+    op1 > op2
+  } else if (op == "<=") {
+    op1 <= op2
+  } else if (op == ">=") {
+    op1 >= op2
+  } else {
+    op1 != op2
+  }
+}
+
 binomial_tab <- function() {
   tabItem(tabName = "binomial",
           fluidRow(
@@ -121,7 +139,10 @@ binomial_tab <- function() {
                             width=12,
                             fileInput("binomialFile", "File"),
                             checkboxInput("binomialHeader", "Header", F),
-                            textInput("binomial_standard", "TRUE Value", "1"),
+                            fluidRow(
+                              column(width=6, selectInput("binomial_relop", "Relational Operation", relops)),
+                              column(width=6, textInput("binomial_standard", "TRUE Value", "1"))
+                            ),
                             uiOutput("binomial_data_field_ui")
                           )
                           )
@@ -393,7 +414,8 @@ server <- function(input, output) {
         data <- read.csv(inFile$datapath, header=input$binomialHeader)
         field <- input$binomial_data_field
         N <- length(data[[field]])
-        ySum <- sum(data[[field]] == input$binomial_standard)
+        op <- input$binomial_relop
+        ySum <- sum(judge(op, data[[field]], input$binomial_standard))
       }
     } else {
       N <- input$binomialN
@@ -423,7 +445,8 @@ server <- function(input, output) {
     if (!is.null(inFile)) {
       data <- read.csv(inFile$datapath, header=input$binomialHeader)
       field <- input$binomial_data_field
-      ySum <- sum(data[[field]] == input$binomial_standard)
+      op <- input$binomial_relop
+      ySum <- sum(judge(op, data[[field]], input$binomial_standard))
     }
     valueBox(
       paste("Y = "), paste(ySum), color="teal"
@@ -444,7 +467,8 @@ server <- function(input, output) {
         data <- read.csv(inFile$datapath, header=input$binomialHeader)
         field <- input$binomial_data_field
         N <- length(data[[field]])
-        ySum <- sum(data[[field]] == input$binomial_standard)
+        op <- input$binomial_relop
+        ySum <- sum(judge(op, data[[field]], input$binomial_standard))
       }
     } else {
       N <- input$binomialN
