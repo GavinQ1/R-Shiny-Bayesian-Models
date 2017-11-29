@@ -287,7 +287,7 @@ hierachical_tab <- function() {
                       solidHeader = TRUE,
                       fluidRow(
                         column(width=6,
-                               numericInput("hier_sim_n", "No. Simulations", min=0, value=1000)),
+                               numericInput("hier_sim_n", "No. Simulations", min=0, value=10000)),
                         column(width=6,
                                numericInput("hier_sim_thin", "thin", min=0, value=1))
                       ),
@@ -349,8 +349,6 @@ ui <- function() {
   )
 }
 
-inputUIs <- c()
-outputUIs <- c()
 
 getInputUIName <- function(i) {
   paste0("input_ui_", i)
@@ -386,6 +384,26 @@ getInputDataFieldOutUI <- function(i) {
 
 getOutputVarName <- function(i) {
   paste0("output_var_", i)
+}
+
+getOutputRemoveName <- function(i) {
+  paste0("output_remove_", i)
+}
+
+getInputRemoveName <- function(i) {
+  paste0("input_remove_", i)
+}
+
+getOutputUseIndexRange <- function(i) {
+  paste0("output_use_range", i)
+}
+
+getOutputIndexRangeLower <- function(i) {
+  paste0("output_range_lower", i)
+}
+
+getOutputIndexRangeUpper <- function(i) {
+  paste0("output_range_upper", i)
 }
 
 # server 
@@ -736,8 +754,14 @@ server <- function(input, output) {
     )
   })
   
+  obslist <- list()
+  
+  inputUIs <- list()
+  outputUIs <- list()
+  
   observeEvent(input$hier_input_add, {
-    i <- length(inputUIs) + 1
+    i <- inputUI_id
+    inputUI_id <<- inputUI_id + 1
     id <- paste0("input_UI_", i)
     insertUI(
       selector = '#input_placeholder',
@@ -760,19 +784,52 @@ server <- function(input, output) {
                    conditionalPanel(
                      paste0("input.", getInputUseFileName(i), " == true"),
                      fluidRow(
+                       column(width=12, checkboxInput(getInputHeaderName(i), "Header", value=T)),
                        column(width=6, fileInput(getInputFileName(i), "File")),
-                       column(width=6, checkboxInput(getInputHeaderName(i), "Header"))
+                       column(width=6, uiOutput(getInputDataFieldOutUI(i)))
                      )
-                   ))
+                   ),
+                   div(actionButton(getInputRemoveName(i), "Delete", icon=icon("close")),
+                       style="float:right")
+                   )
           )
         )
       )
     )
-    inputUIs <<- c(inputUIs, id)
+    
+    renderDataField(i)
+    
+    obslist[[getInputRemoveName(i)]] <<- observeEvent(input[[getInputRemoveName(i)]], {
+      removeUI(
+        ## pass in appropriate div id
+        selector = paste0('#', id)
+      )
+      inputUIs[[i]] <<- F
+      obslist[[getInputRemoveName(i)]] <<- NULL
+    }) 
+    
+    inputUIs[[i]] <<- T
   })
   
+  renderDataField <- function(i) {
+    output[[getInputDataFieldOutUI(i)]] <- renderUI({
+      inFile <- input[[getInputFileName(i)]]
+      choices <- NULL
+      if (!is.null(inFile)) {
+        data <- read.csv(inFile$datapath, header=input[[getInputHeaderName(i)]])
+        choices <- colnames(data)
+      }
+      selectInput(getInputDataFieldUI(i), "Field", choices)
+    })
+  }
+  
+  outputUI_id <- 1
+  inputUI_id <- 1
+  
   observeEvent(input$hier_output_add, {
-    i <- length(outputUIs) + 1
+    i <- outputUI_id
+    outputUI_id <<- outputUI_id + 1
+    
     id <- paste0("output_UI_", i)
     insertUI(
       selector = '#output_placeholder',
@@ -782,11 +839,37 @@ server <- function(input, output) {
           width=12,
           collapsible = TRUE,
           title=paste0("# ", i),
-          textInput(getOutputVarName(i), paste0("Output Name ", i), value=paste0("output_", i))
+          fluidRow(
+            column(width=8, 
+                   textInput(getOutputVarName(i), paste0("Output Name ", i), value=paste0("output_", i))),
+            column(width=4,
+                   checkboxInput(getOutputUseIndexRange(i), "Use Index Range", value=F))
+          ),
+          conditionalPanel(
+            paste0("input.", getOutputUseIndexRange(i), " == true"),
+            fluidRow(
+              column(width=6,
+                     numericInput(getOutputIndexRangeLower(i), "Lower Bound", min = 1, value = 2)),
+              column(width=6,
+                     numericInput(getOutputIndexRangeUpper(i), "Upper Bound",min = 1, value = 100))
+            )
+          ),
+          div(actionButton(getOutputRemoveName(i), "Delete", icon=icon("close")),
+              style="float:right")
         )
       )
     )
-    outputUIs <<- c(outputUIs, id)
+    
+    obslist[[getOutputRemoveName(i)]] <<- observeEvent(input[[getOutputRemoveName(i)]], {
+      removeUI(
+        ## pass in appropriate div id
+        selector = paste0('#', id)
+      )
+      outputUIs[[i]] <<- F
+      obslist[[getOutputRemoveName(i)]] <<- NULL
+    }) 
+    
+    outputUIs[[i]] <<- T
   })
   
   observeEvent(input$hier_clear, {
@@ -809,8 +892,6 @@ server <- function(input, output) {
     outputUIs <<- c()
   })
   
-  hier_plot <- NULL
-  
   observeEvent(input$hier_generate, {
     inputNum <- length(inputUIs)
     outputNum <- length(outputUIs)
@@ -820,91 +901,79 @@ server <- function(input, output) {
     input_value_pair <- list()
     for (i in 1:inputNum) {
       if (i > inputNum) break
-      name <- input[[getInputVarName(i)]]
-      inputNames <- c(inputNames, name)
-      flag <- input[[getInputUseFileName(i)]]
-      value <- 0
-      if (isTRUE(flag)) {
-        inFile <- input[[getInputFileName(i)]]
-        if (!is.null(inFile)) {
-          data <- read.csv(inFile$datapath, header=input[[getInputHeaderName(i)]])
-          value <- data[[1]]
+      if (isTRUE(inputUIs[[i]])) {
+        name <- input[[getInputVarName(i)]]
+        inputNames <- c(inputNames, name)
+        flag <- input[[getInputUseFileName(i)]]
+        value <- 0
+        if (isTRUE(flag)) {
+          inFile <- input[[getInputFileName(i)]]
+          if (!is.null(inFile)) {
+            data <- read.csv(inFile$datapath, header=input[[getInputHeaderName(i)]])
+            field <- input[[getInputDataFieldUI(i)]]
+            value <- data[[field]]
+          }
+        } else {
+          value <- input[[getInputValName(i)]]
         }
-      } else {
-        value <- input[[getInputValName(i)]]
+        inputValues <- c(inputValues, value)
+        input_value_pair[[name]] <- value
       }
-      inputValues <- c(inputValues, value)
-      input_value_pair[[name]] <- value
     }
     outputNames <- c()
     for (i in 1:outputNum) {
       if (i > outputNum) break
-      outputNames <- c(outputNames, input[[getOutputVarName(i)]])
+      if (isTRUE(outputUIs[[i]])) {
+        outputNames <- c(outputNames, input[[getOutputVarName(i)]])
+      }
     }
     
-    # model.text <- input$hierachicaL_text
+     model.text <- input$hierachicaL_text
     
-    # model.spec <- textConnection(model.text)
-
-    # model.jags <- jags.model(model.spec, data=input_value_pair)
+     model.spec <- textConnection(model.text)
     
-    # size <- input$hier_sim_n
-    # thin <- input$hier_sim_thin
-    # burn <- input$burn * size
-    # thinEvery <- input$thin
-    set.seed(1)
+    # interactiveRender(outputNames)
+    tryCatch({
+      model.jags <- jags.model(model.spec, data=input_value_pair)
+      
+      size <- input$hier_sim_n
+      thin <- input$hier_sim_thin
+      # burn <- input$burn * size
+      # thinEvery <- input$thin
+      
+      
+      set.seed(1)
+      samps.coda <- coda.samples(model.jags, outputNames, n.iter=size, thin=thin)
+    }, error=function(e) {
+      print(e)
+    })
     
-    interactiveRender(outputNames)
-    # samps.coda <- coda.samples(model.jags, outputNames, n.iter=size, thin=thin)
-  
-    
-    # interactiveRenderer(samps.coda, outputNames)
+    interactiveRenderer(samps.coda)
   })
   
-  interactiveRender <- function(names) {
-    outputNum <- length(names)
-    
-    output$hier_plot_1 <- renderUI({
-      box(
-        collapsible = TRUE,
-        width=12,
-        renderPlot({plot(density(dgamma(seq(0,15,.1),1,1)))})
-      )
-    })
-    
-    output$hier_plots <- renderUI({
-      plot_output_list <- lapply(1:outputNum, function(i) {
-        plotname <- paste0("hier_plot_sub_", i)
-        uiOutput(plotname)
-      })
-      do.call(tagList, plot_output_list)
-    })
+  interactiveRenderer <- function(coda) {
+    names <- c()
+    outputNum <- length(outputUIs)
     
     for (i in 1:outputNum) {
-      local({
-        thisI <- i
-        plotname <- paste0("hier_plot_sub_", thisI)
-        output[[plotname]] <- renderUI({
-          box(
-            collapsible = TRUE,
-            width=12,
-            renderPlot({plot(density(dgamma(seq(0,15,.1),1,1)), main=paste(names[thisI]))})
-          )
-        })
+      if (i > outputNum) break
+      if (isTRUE(outputUIs[[i]])) {
+        if (!isTRUE(input[[getOutputUseIndexRange(i)]])) {
+          names <- c(names, input[[getOutputVarName(i)]])
+        }
+      }
+    }
+    
+    if (length(names) > 0) {
+      output$hier_plot_1 <- renderUI({
+        box(
+          collapsible = TRUE,
+          width=12,
+          renderPlot({plot(coda[[1]][, names])})
+        )
       })
     }
-  }
-  
-  interactiveRenderer <- function(coda, names) {
-    outputNum <- length(names)
     
-    output$hier_plot_1 <- renderUI({
-      box(
-        collapsible = TRUE,
-        width=12,
-        plotOutput(plot(coda[[1]][, names]))
-      )
-    })
     
     output$hier_plots <- renderUI({
       plot_output_list <- lapply(1:outputNum, function(i) {
@@ -917,16 +986,30 @@ server <- function(input, output) {
     for (i in 1:outputNum) {
       local({
         thisI <- i
-        plotname <- paste0("hier_plot_sub_", thisI)
-        output[[plotname]] <- renderUI({
-          box(
-            collapsible = TRUE,
-            width=12,
-            plotOutput(
-              stationarity.plot(samps.coda[[1]][,names[thisI]],main=names[thisI])
-            )
-          )
-        })
+        if (isTRUE(outputUIs[[thisI]])) {
+          plotname <- paste0("hier_plot_sub_", thisI)
+          if (isTRUE(input[[getOutputUseIndexRange(i)]])) {
+            lower <- input[[getOutputIndexRangeLower(i)]]
+            upper <- input[[getOutputIndexRangeUpper(i)]]
+            output[[plotname]] <- renderUI({
+              box(
+                collapsible = TRUE,
+                width=12,
+                renderPlot({plot(density(coda[[1]][, lower : upper]),main=names[thisI])})
+              )
+            })
+          } else {
+            output[[plotname]] <- renderUI({
+              box(
+                collapsible = TRUE,
+                width=12,
+                renderPlot({plot(density(coda[[1]][, input[[getOutputVarName(i)]]]),main=names[thisI])})
+              )
+            })
+          }
+          
+          
+        }
       })
     }
   }

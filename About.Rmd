@@ -3,4 +3,5 @@
 This application implements the following models:<br>
     1. Poisson-Gamma,<br>
     2. Binomial-Beta,<br>
-    3. Normal.<br>
+    3. Normal,<br>
+    4. Hierachical models
