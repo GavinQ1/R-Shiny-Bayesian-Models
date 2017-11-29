@@ -190,10 +190,10 @@ normal_tab <- function() {
                           "input.normalSource == true",
                           column(
                             width=12,
-                            fileInput("normalFile", "File")),
+                            fileInput("normalFile", "File"),
                             checkboxInput("normalHeader", "Header", T),
                             uiOutput("normal_data_field_ui")
-                          )
+                          ))
                       )
                     ),
                     hr(),
