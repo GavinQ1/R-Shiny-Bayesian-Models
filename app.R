@@ -524,7 +524,7 @@ server <- function(input, output) {
       ySum <- var(data[[field]])
     }
     valueBox(
-      paste("Sigama2 = "), paste(signif(ySum, digits=5)), color="teal"
+      paste("Sigma2 = "), paste(signif(ySum, digits=5)), color="teal"
     )
   })
   
