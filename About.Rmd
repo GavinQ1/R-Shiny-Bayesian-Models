@@ -1,3 +1,8 @@
-## About this App
+### About this App...
 
-This application....
+<p>
+This application implements the following models:<br>
+    1. Poisson-Gamma,<br>
+    2. Binomial-Beta,<br>
+    3. Normal.<br>
+</p>

@@ -3,215 +3,272 @@ library(shinydashboard)
 
 INTEGER_MAX <- 0x7fffffff
 
+# helper function
 roundS <- function(f, d) {
   signif(f, digits=d)
 }
 
-ui <- dashboardPage(
-  dashboardHeader(title = "Bayesian Models"),
-  dashboardSidebar(
-    hr(),
-    sidebarMenu(
-      menuItem("Poisson-Gamma", tabName = "poisson"),
-      menuItem("Binomial-Beta", tabName = "binomial"),
-      menuItem("Normal", tabName = "normal")
-    ),
-    hr(),
-    sidebarMenu(
-      menuItem("About", tabName = "about",icon = icon("question"))
-    )
-  ),
-  dashboardBody(
-    tabItems(
-      tabItem(tabName = "about",
-              includeMarkdown("About.Rmd")
-      ),
-      tabItem(tabName = "poisson",
-              fluidRow(
-                box(
-                  collapsible = TRUE,
-                  width=12,
-                  title = "Poisson-Gamma Model",
-                  box(width=6, 
-                      status="info",
-                      title="Prior Belief",
-                      solidHeader = TRUE,
-                      br(),
-                      fluidRow(
-                        box(status = "primary",numericInput("poisson_prior_a", "a", min=1, max=INTEGER_MAX, value=2)),
-                        box(status = "primary",numericInput("poisson_prior_b", "b", min=1, max=INTEGER_MAX, value=1)),
-                        valueBoxOutput("poisson_prior_dist")
-                      )),   
-                  box(width=6, 
-                      status = "warning", 
-                      solidHeader = TRUE,
-                      title = "Data",
-                      fluidRow(
-                        hr(),
-                        column(
-                          width=12, 
-                          box(
-                            width=8,
-                            status = "info",
-                            checkboxInput("poissonSource", "Use Data From File", F, width="100%"),
-                            conditionalPanel(
-                              "input.poissonSource == true",
-                              fileInput("poissonFile", "File"))
-                            )
-                          ),
-                        hr(),
-                        conditionalPanel(
-                          "input.poissonSource == false",
-                          box(status = "primary",numericInput("poissonN", "N", min=0, max=INTEGER_MAX, value=44)),
-                          box(status = "primary",numericInput("poissonYSum", "Y sum", min=0, max=INTEGER_MAX, value=66))
-                        ),
+# models uis
+poisson_tab <- function() {
+  tabItem(tabName = "poisson",
+          fluidRow(
+            box(
+              collapsible = TRUE,
+              width=12,
+              solidHeader = TRUE,
+              status="primary",
+              title = "Poisson-Gamma Model",
+              box(width=6, 
+                  status="info",
+                  collapsible = TRUE, 
+                  title="Prior Belief",
+                  solidHeader = TRUE,
+                  br(),
+                  fluidRow(
+                    box(status = "primary",numericInput("poisson_prior_a", "a", min=1, max=INTEGER_MAX, value=2)),
+                    box(status = "primary",numericInput("poisson_prior_b", "b", min=1, max=INTEGER_MAX, value=1)),
+                    valueBoxOutput("poisson_prior_dist")
+                  )),   
+              box(width=6, 
+                  status = "warning", 
+                  solidHeader = TRUE,
+                  title = "Data",
+                  collapsible = TRUE, 
+                  fluidRow(
+                    hr(),
+                    column(
+                      width=12, 
+                      box(
+                        width=8,
+                        status = "info",
+                        checkboxInput("poissonSource", "Use Data From File", F, width="100%"),
                         conditionalPanel(
                           "input.poissonSource == true",
-                          column(width=12, fluidRow(
-                            valueBoxOutput("poisson_data_N"),
-                            valueBoxOutput("poisson_data_YSUM")
-                          ))
-                        ),
-                        valueBoxOutput("poisson_post_dist")
-                      ))              
-                )
-              ),
-              fluidRow(
-                box(plotOutput("poisson_prior"), width=12),
-                box(plotOutput("poisson_posterior"), width=12)
-              )
-      ),
-      tabItem(tabName = "binomial",
-              fluidRow(
-                box(
-                  collapsible = TRUE,
-                  width=12,
-                  title = "Binomial-Beta Model",
-                  box(width=6, 
-                      status="info",
-                      title="Prior Belief",
-                      solidHeader = TRUE,
-                      br(),
-                      fluidRow(
-                        box(status = "primary",numericInput("binomial_prior_a", "a", min=1, max=INTEGER_MAX, value=3)),
-                        box(status = "primary",numericInput("binomial_prior_b", "b", min=1, max=INTEGER_MAX, value=2)),
-                        valueBoxOutput("beta_prior_dist")
-                      )),                  
-                  box(width=6, 
-                      status = "warning", 
-                      solidHeader = TRUE,
-                      title = "Data", 
-                      fluidRow(
-                        hr(),
-                        column(
-                          width=12, 
-                          box(
-                            width=8,
-                            status = "info",
-                            checkboxInput("binomialSource", "Use Data From File", F, width="100%"),
-                            conditionalPanel(
-                              "input.binomialSource == true",
-                              fileInput("binomialFile", "File"))
+                          column(
+                            width=12,
+                            fileInput("poissonFile", "File"),
+                            checkboxInput("poissonHeader", "Header", T),
+                            uiOutput("poisson_data_field_ui")
                           )
-                        ),
-                        hr(),
-                        conditionalPanel(
-                          "input.binomialSource == false",
-                          box(status = "primary",numericInput("binomialN", "N", min=0, max=INTEGER_MAX, value=100)),
-                          box(status = "primary",numericInput("binomialY", "Success", min=0, max=INTEGER_MAX, value=20))
-                        ),
+                        )
+                      )
+                    ),
+                    hr(),
+                    conditionalPanel(
+                      "input.poissonSource == false",
+                      box(status = "primary",numericInput("poissonN", "N", min=0, max=INTEGER_MAX, value=44)),
+                      box(status = "primary",numericInput("poissonYSum", "Y sum", min=0, max=INTEGER_MAX, value=66))
+                    ),
+                    conditionalPanel(
+                      "input.poissonSource == true",
+                      column(width=12, fluidRow(
+                        valueBoxOutput("poisson_data_N"),
+                        valueBoxOutput("poisson_data_YSUM")
+                      ))
+                    ),
+                    valueBoxOutput("poisson_post_dist")
+                  ))              
+            )
+          ),
+          fluidRow(
+            box(
+              status = "info",
+              collapsible = TRUE, 
+              solidHeader = TRUE,
+              title = "Prior Plot",
+              plotOutput("poisson_plot"), width=12
+              )
+          )
+  )
+}
+
+binomial_tab <- function() {
+  tabItem(tabName = "binomial",
+          fluidRow(
+            box(
+              collapsible = TRUE,
+              width=12,
+              status="primary",
+              solidHeader = TRUE,
+              title = "Binomial-Beta Model",
+              box(width=6, 
+                  status="info",
+                  collapsible = TRUE, 
+                  title="Prior Belief",
+                  solidHeader = TRUE,
+                  br(),
+                  fluidRow(
+                    box(status = "primary",numericInput("binomial_prior_a", "a", min=1, max=INTEGER_MAX, value=3)),
+                    box(status = "primary",numericInput("binomial_prior_b", "b", min=1, max=INTEGER_MAX, value=2)),
+                    valueBoxOutput("beta_prior_dist")
+                  )),                  
+              box(width=6, 
+                  status = "warning", 
+                  solidHeader = TRUE,
+                  collapsible = TRUE, 
+                  title = "Data", 
+                  fluidRow(
+                    hr(),
+                    column(
+                      width=12, 
+                      box(
+                        width=8,
+                        status = "info",
+                        checkboxInput("binomialSource", "Use Data From File", F, width="100%"),
                         conditionalPanel(
                           "input.binomialSource == true",
-                          column(width=12, fluidRow(
-                            valueBoxOutput("binomial_data_N"),
-                            valueBoxOutput("binomial_data_Y")
-                          ))
-                        ),
-                        valueBoxOutput("binomial_post_dist")
-                      ))                  
-                ),
-                fluidRow(
-                  box(plotOutput("binomial_plot"), width=12)
-                )
-              )
-      ),
-      tabItem(tabName = "normal",
-              fluidRow(
-                box(
-                  collapsible = TRUE,
-                  width=12,
-                  title = "Normal Model",
-                  box(width=6, 
-                      status="info",
-                      title="Prior Belief",
-                      solidHeader = TRUE,
-                      br(),
-                      fluidRow(
-                        box(status = "primary",numericInput("normal_prior_mu", "mu0", min=1, max=INTEGER_MAX, value=1.9)),
-                        box(status = "primary",numericInput("normal_prior_tau", "tau20", min=1, max=INTEGER_MAX, value=0.9025)),
-                        valueBoxOutput("normal_prior_dist")
-                      )),                  
-                  box(width=6, 
-                      status = "warning", 
-                      solidHeader = TRUE,
-                      title = "Data", 
-                      fluidRow(
-                        hr(),
-                        column(
-                          width=12, 
-                          box(
-                            width=8,
-                            status = "info",
-                            checkboxInput("normalSource", "Use Data From File", F, width="100%"),
-                            conditionalPanel(
-                              "input.normalSource == true",
-                              fileInput("normalFile", "File"))
+                          column(
+                            width=12,
+                            fileInput("binomialFile", "File"),
+                            checkboxInput("binomialHeader", "Header", F),
+                            textInput("binomial_standard", "TRUE Value", "1"),
+                            uiOutput("binomial_data_field_ui")
                           )
-                        ),
-                        hr(),
-                        conditionalPanel(
-                          "input.normalSource == false",
-                          box(status = "primary",numericInput("normalN", "N", min=0, max=INTEGER_MAX, value=9)),
-                          box(status = "primary",numericInput("normalMu", "mu", min=0, max=INTEGER_MAX, value=1.804)),
-                          box(status = "primary",numericInput("normalTau", "sigma2", min=0, max=INTEGER_MAX, value=0.017))
-                        ),
+                          )
+                      )
+                    ),
+                    hr(),
+                    conditionalPanel(
+                      "input.binomialSource == false",
+                      box(status = "primary",numericInput("binomialN", "N", min=0, max=INTEGER_MAX, value=100)),
+                      box(status = "primary",numericInput("binomialY", "Success", min=0, max=INTEGER_MAX, value=20))
+                    ),
+                    conditionalPanel(
+                      "input.binomialSource == true",
+                      column(width=12, fluidRow(
+                        valueBoxOutput("binomial_data_N"),
+                        valueBoxOutput("binomial_data_Y")
+                      ))
+                    ),
+                    valueBoxOutput("binomial_post_dist")
+                  ))                  
+            )),
+            fluidRow(
+              box(status = "info",
+                  collapsible = TRUE, 
+                  solidHeader = TRUE,
+                  title = "Prior and Posterior Plot",
+                  plotOutput("binomial_plot"), width=12)
+            )
+  )
+}
+
+normal_tab <- function() {
+  tabItem(tabName = "normal",
+          fluidRow(
+            box(
+              collapsible = TRUE,
+              width=12,
+              solidHeader = TRUE,
+              status="primary",
+              title = "Normal Model",
+              box(width=6, 
+                  status="info",
+                  collapsible = TRUE, 
+                  title="Prior Belief",
+                  solidHeader = TRUE,
+                  br(),
+                  fluidRow(
+                    box(status = "primary",numericInput("normal_prior_mu", "mu0", min=1, max=INTEGER_MAX, value=1.9)),
+                    box(status = "primary",numericInput("normal_prior_tau", "tau20", min=1, max=INTEGER_MAX, value=0.9025)),
+                    valueBoxOutput("normal_prior_dist")
+                  )),                  
+              box(width=6, 
+                  status = "warning", 
+                  collapsible = TRUE, 
+                  solidHeader = TRUE,
+                  title = "Data", 
+                  fluidRow(
+                    hr(),
+                    column(
+                      width=12, 
+                      box(
+                        width=8,
+                        status = "info",
+                        checkboxInput("normalSource", "Use Data From File", F, width="100%"),
                         conditionalPanel(
                           "input.normalSource == true",
-                          column(width=12, fluidRow(
-                            valueBoxOutput("normal_data_N"),
-                            valueBoxOutput("normal_data_Mu"),
-                            valueBoxOutput("normal_data_Tau")
-                          ))
-                        ),
-                        valueBoxOutput("normal_post_dist")
+                          column(
+                            width=12,
+                            fileInput("normalFile", "File")),
+                            checkboxInput("normalHeader", "Header", T),
+                            uiOutput("normal_data_field_ui")
+                          )
+                      )
+                    ),
+                    hr(),
+                    conditionalPanel(
+                      "input.normalSource == false",
+                      box(status = "primary",numericInput("normalN", "N", min=0, max=INTEGER_MAX, value=9)),
+                      box(status = "primary",numericInput("normalMu", "mu", min=0, max=INTEGER_MAX, value=1.804)),
+                      box(status = "primary",numericInput("normalTau", "sigma2", min=0, max=INTEGER_MAX, value=0.017))
+                    ),
+                    conditionalPanel(
+                      "input.normalSource == true",
+                      column(width=12, fluidRow(
+                        valueBoxOutput("normal_data_N"),
+                        valueBoxOutput("normal_data_Mu"),
+                        valueBoxOutput("normal_data_Tau")
                       ))
-                  )),
-              fluidRow(
-                box(plotOutput("normal_plot"), width=12)
-              )
+                    ),
+                    valueBoxOutput("normal_post_dist")
+                  ))
+            )),
+          fluidRow(
+            box(status = "info",
+                collapsible = TRUE, 
+                solidHeader = TRUE,
+                title = "Prior and Posterior Plot",
+                plotOutput("normal_plot"), width=12)
+          )
+  )
+}
+
+# app ui
+ui <- function() {
+  dashboardPage(
+    dashboardHeader(title = "Bayesian Models"),
+    dashboardSidebar(
+      hr(),
+      sidebarMenu(
+        menuItem("Poisson-Gamma", tabName = "poisson"),
+        menuItem("Binomial-Beta", tabName = "binomial"),
+        menuItem("Normal", tabName = "normal")
+      ),
+      hr(),
+      sidebarMenu(
+        menuItem("About", tabName = "about",icon = icon("question")),
+        menuItem("Source code", icon = icon("file-code-o"), 
+                 href = "https://github.com/GavinQ1/R-Shiny-Bayesian-Models")
+      )
+    ),
+    dashboardBody(
+      tabItems(
+        tabItem(tabName = "about",
+                includeMarkdown("About.Rmd")
+        ),
+        poisson_tab(),
+        binomial_tab(),
+        normal_tab()
       )
     )
   )
-)
+}
 
+# server 
 server <- function(input, output) {
-  output$poisson_prior <- renderPlot({
-    thetas <- seq(0.1, 15, .1)
-    a <- input$poisson_prior_a
-    b <- input$poisson_prior_b
-    pTheta <- dgamma(thetas, a, b)
-    plot(thetas, pTheta, 
-         ylab=expression(paste("p(", theta, ")")),
-         xlab=expression(theta),
-         main=paste(
-           "Prior distribution with a =", a,
-           ", b =", b
-         ),
-         type="l"
-    )
+  
+  output$poisson_data_field_ui <- renderUI({
+    inFile <- input$poissonFile
+    choices <- NULL
+    if (!is.null(inFile)) {
+      data <- read.csv(inFile$datapath, header=input$poissonHeader)
+      choices <- colnames(data)
+    }
+    selectInput("poisson_data_field", "Field", choices)
   })
   
-  output$poisson_posterior <- renderPlot({
+  output$poisson_plot <- renderPlot({
     thetas <- seq(0.1, 15, .1)
     a <- input$poisson_prior_a
     b <- input$poisson_prior_b
@@ -221,10 +278,10 @@ server <- function(input, output) {
       N <- 0
       ySum <- 0
       if (!is.null(inFile)) {
-        data <- read.csv(inFile$datapath)
-        print(1)
-        N <- length(data[[1]])
-        ySum <- sum(data[[1]])
+        data <- read.csv(inFile$datapath, header=input$poissonHeader)
+        field <- input$poisson_data_field
+        N <- length(data[[field]])
+        ySum <- sum(data[[field]])
       }
     } else {
       N <- input$poissonN
@@ -232,12 +289,24 @@ server <- function(input, output) {
     }
     
     pTheta <- dgamma(thetas, a + ySum, b + N)
+    priorTheta <- dgamma(thetas, a, b)
+    ylim <- c(0, max(priorTheta, pTheta))
     plot(thetas, pTheta, 
          ylab=expression(paste("p(", theta, "|", list(y[1],...,y[N]), ")")),
          xlab=expression(theta),
-         main=expression(paste("Posterior distribution of ", theta)),
+         main=paste(
+           "Prior distribution with a =", a,
+           ", b =", b, ", and Posterior distribution"
+         ),
          col="blue",
          type="l"
+    )
+    lines(thetas, priorTheta, col="black")
+    legend(
+      "topright",
+      legend=c("Prior", "Posterior"),
+      col=c("black", "blue"),
+      lty=1:1
     )
   })
   
@@ -256,9 +325,10 @@ server <- function(input, output) {
       N <- 0
       ySum <- 0
       if (!is.null(inFile)) {
-        data <- read.csv(inFile$datapath)
-        N <- length(data[[1]])
-        ySum <- sum(data[[1]])
+        data <- read.csv(inFile$datapath, header=input$poissonHeader)
+        field <- input$poisson_data_field
+        N <- length(data[[field]])
+        ySum <- sum(data[[field]])
       }
     } else {
       N <- input$poissonN
@@ -273,8 +343,9 @@ server <- function(input, output) {
     inFile <- input$poissonFile
     N <- 0
     if (!is.null(inFile)) {
-      data <- read.csv(inFile$datapath)
-      N <- length(data[[1]])
+      data <- read.csv(inFile$datapath, header=input$poissonHeader)
+      field <- input$poisson_data_field
+      N <- length(data[[field]])
     }
     valueBox(
       paste("N = "), paste(N), color="teal"
@@ -285,8 +356,9 @@ server <- function(input, output) {
     inFile <- input$poissonFile
     ySum <- 0
     if (!is.null(inFile)) {
-      data <- read.csv(inFile$datapath)
-      ySum <- sum(data[[1]])
+      data <- read.csv(inFile$datapath, header=input$poissonHeader)
+      field <- input$poisson_data_field
+      ySum <- sum(data[[field]])
     }
     valueBox(
       paste("Y Sum = "), paste(ySum), color="teal"
@@ -299,6 +371,16 @@ server <- function(input, output) {
     )
   })
   
+  output$binomial_data_field_ui <- renderUI({
+    inFile <- input$binomialFile
+    choices <- NULL
+    if (!is.null(inFile)) {
+      data <- read.csv(inFile$datapath, header=input$binomialHeader)
+      choices <- colnames(data)
+    }
+    selectInput("binomial_data_field", "Field", choices)
+  })
+  
   output$binomial_post_dist <- renderValueBox({
     a <- input$binomial_prior_a
     b <- input$binomial_prior_b
@@ -308,9 +390,10 @@ server <- function(input, output) {
       N <- 0
       ySum <- 0
       if (!is.null(inFile)) {
-        data <- read.csv(inFile$datapath)
-        N <- length(data[[1]])
-        ySum <- sum(data[[1]])
+        data <- read.csv(inFile$datapath, header=input$binomialHeader)
+        field <- input$binomial_data_field
+        N <- length(data[[field]])
+        ySum <- sum(data[[field]] == input$binomial_standard)
       }
     } else {
       N <- input$binomialN
@@ -325,8 +408,9 @@ server <- function(input, output) {
     inFile <- input$binomialFile
     N <- 0
     if (!is.null(inFile)) {
-      data <- read.csv(inFile$datapath)
-      N <- length(data[[1]])
+      data <- read.csv(inFile$datapath, header=input$binomialHeader)
+      field <- input$binomial_data_field
+      N <- length(data[[field]])
     }
     valueBox(
       paste("N = "), paste(N), color="teal"
@@ -337,8 +421,9 @@ server <- function(input, output) {
     inFile <- input$binomialFile
     ySum <- 0
     if (!is.null(inFile)) {
-      data <- read.csv(inFile$datapath)
-      ySum <- sum(data[[1]])
+      data <- read.csv(inFile$datapath, header=input$binomialHeader)
+      field <- input$binomial_data_field
+      ySum <- sum(data[[field]] == input$binomial_standard)
     }
     valueBox(
       paste("Y = "), paste(ySum), color="teal"
@@ -356,10 +441,10 @@ server <- function(input, output) {
       N <- 0
       ySum <- 0
       if (!is.null(inFile)) {
-        data <- read.csv(inFile$datapath)
-        print(1)
-        N <- length(data[[1]])
-        ySum <- sum(data[[1]])
+        data <- read.csv(inFile$datapath, header=input$binomialHeader)
+        field <- input$binomial_data_field
+        N <- length(data[[field]])
+        ySum <- sum(data[[field]] == input$binomial_standard)
       }
     } else {
       N <- input$binomialN
@@ -394,12 +479,23 @@ server <- function(input, output) {
     )
   })
   
+  output$normal_data_field_ui <- renderUI({
+    inFile <- input$normalFile
+    choices <- NULL
+    if (!is.null(inFile)) {
+      data <- read.csv(inFile$datapath, header=input$normalHeader)
+      choices <- colnames(data)
+    }
+    selectInput("normal_data_field", "Field", choices)
+  })
+  
   output$normal_data_N <- renderValueBox({
     inFile <- input$normalFile
     N <- 0
     if (!is.null(inFile)) {
-      data <- read.csv(inFile$datapath)
-      N <- length(data[[1]])
+      data <- read.csv(inFile$datapath, header=input$normalHeader)
+      field <- input$normal_data_field
+      N <- length(data[[field]])
     }
     valueBox(
       paste("N = "), paste(N), color="teal"
@@ -410,8 +506,9 @@ server <- function(input, output) {
     inFile <- input$normalFile
     ySum <- 0
     if (!is.null(inFile)) {
-      data <- read.csv(inFile$datapath)
-      ySum <- mean(data[[1]])
+      data <- read.csv(inFile$datapath, header=input$normalHeader)
+      field <- input$normal_data_field
+      ySum <- mean(data[[field]])
     }
     valueBox(
       paste("Y_Bar = "), paste(roundS(ySum,6)), color="teal"
@@ -422,8 +519,9 @@ server <- function(input, output) {
     inFile <- input$normalFile
     ySum <- 1
     if (!is.null(inFile)) {
-      data <- read.csv(inFile$datapath)
-      ySum <- var(data[[1]])
+      data <- read.csv(inFile$datapath, header=input$normalHeader)
+      field <- input$normal_data_field
+      ySum <- var(data[[field]])
     }
     valueBox(
       paste("Sigama2 = "), paste(signif(ySum, digits=5)), color="teal"
@@ -440,10 +538,11 @@ server <- function(input, output) {
       mu <- 0
       tau <- 1
       if (!is.null(inFile)) {
-        data <- read.csv(inFile$datapath)
-        N <- length(data[[1]])
-        mu <- mean(data[[1]])
-        tau <- var(data[[1]])
+        data <- read.csv(inFile$datapath, header=input$normalHeader)
+        field <- input$normal_data_field
+        N <- length(data[[field]])
+        mu <- mean(data[[field]])
+        tau <- var(data[[field]])
       }
     } else {
       N <- input$normalN
@@ -467,10 +566,11 @@ server <- function(input, output) {
       mu <- 0
       tau <- 1
       if (!is.null(inFile)) {
-        data <- read.csv(inFile$datapath)
-        N <- length(data[[1]])
-        mu <- mean(data[[1]])
-        tau <- var(data[[1]])
+        data <- read.csv(inFile$datapath, header=input$normalHeader)
+        field <- input$normal_data_field
+        N <- length(data[[field]])
+        mu <- mean(data[[field]])
+        tau <- var(data[[field]])
       }
     } else {
       N <- input$normalN
@@ -501,4 +601,6 @@ server <- function(input, output) {
   })
 }
 
-shinyApp(ui, server)
+
+shinyAppDir(".")
+shinyApp(ui(), server)
