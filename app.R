@@ -1,5 +1,7 @@
 ## app.R ##
 library(shinydashboard)
+require(rjags)
+require(coda)
 
 INTEGER_MAX <- 0x7fffffff
 
@@ -245,6 +247,75 @@ normal_tab <- function() {
   )
 }
 
+hierachical_tab <- function() {
+  tabItem(tabName = "hierachical",
+          fluidRow(
+            box(
+              collapsible = TRUE,
+              width=12,
+              status="primary",
+              solidHeader = TRUE,
+              title = "Hierarchical Model",
+              box(width=6, 
+                  status="info",
+                  collapsible = TRUE, 
+                  title="JAGS Model Text",
+                  solidHeader = TRUE,
+                  column(
+                    width=12,
+                    textAreaInput("hierachicaL_text", "Model", height=450)
+                  )
+              ),
+              box(width=6,
+                  status="warning",
+                  collapsible = TRUE, 
+                  title="JAGS Controls",
+                  solidHeader = TRUE,
+                  box(width=12,
+                      status="primary",
+                      collapsible = TRUE,
+                      title="Input Variables",
+                      solidHeader = TRUE,
+                      tags$div(id = 'input_placeholder'),
+                      column(width=12, actionButton("hier_input_add", "Add", icon=icon("plus-square")))
+                  ),
+                  hr(),
+                  box(width=12,
+                      status="primary",
+                      collapsible = TRUE,
+                      title="Output Variables",
+                      solidHeader = TRUE,
+                      fluidRow(
+                        column(width=6,
+                               numericInput("hier_sim_n", "No. Simulations", min=0, value=1000)),
+                        column(width=6,
+                               numericInput("hier_sim_thin", "thin", min=0, value=1))
+                      ),
+                      tags$div(id = 'output_placeholder'),
+                      actionButton("hier_output_add", "Add", icon=icon("plus-square"))
+                  ),
+                  hr(),
+                  box(width=12,
+                      div(actionButton("hier_clear", "Clear", icon=icon("close")),
+                          style="float:left"),
+                      div(actionButton("hier_generate", "Generate", icon=icon("check")),
+                          style="float:right")
+                  )
+              )
+            )
+          ),
+          fluidRow(
+            box(status = "info",
+                collapsible = TRUE, 
+                solidHeader = TRUE,
+                title = "Results",
+                width=12,
+                uiOutput("hier_plot_1"),
+                uiOutput("hier_plots")
+          ))
+  )
+}
+
 # app ui
 ui <- function() {
   dashboardPage(
@@ -254,7 +325,8 @@ ui <- function() {
       sidebarMenu(
         menuItem("Poisson-Gamma", tabName = "poisson"),
         menuItem("Binomial-Beta", tabName = "binomial"),
-        menuItem("Normal", tabName = "normal")
+        menuItem("Normal", tabName = "normal"),
+        menuItem("Hierachical", tabName="hierachical")
       ),
       hr(),
       sidebarMenu(
@@ -270,10 +342,50 @@ ui <- function() {
         ),
         poisson_tab(),
         binomial_tab(),
-        normal_tab()
+        normal_tab(),
+        hierachical_tab()
       )
     )
   )
+}
+
+inputUIs <- c()
+outputUIs <- c()
+
+getInputUIName <- function(i) {
+  paste0("input_ui_", i)
+}
+
+getInputVarName <- function(i) {
+  paste0("input_var_", i)
+}
+
+getInputValName <- function(i) {
+  paste0("input_val_", i)
+}
+
+getInputUseFileName <- function(i) {
+  paste0("input_use_file_", i)
+}
+
+getInputFileName <- function(i) {
+  paste0("input_file_", i)
+}
+
+getInputHeaderName <- function(i) {
+  paste0("input_header_", i)
+}
+
+getInputDataFieldUI <- function(i) {
+  paste0("input_data_field_ui", i)
+}
+
+getInputDataFieldOutUI <- function(i) {
+  paste0("input_data_field_out_ui", i)
+}
+
+getOutputVarName <- function(i) {
+  paste0("output_var_", i)
 }
 
 # server 
@@ -623,8 +735,226 @@ server <- function(input, output) {
       lty=1:1
     )
   })
+  
+  observeEvent(input$hier_input_add, {
+    i <- length(inputUIs) + 1
+    id <- paste0("input_UI_", i)
+    insertUI(
+      selector = '#input_placeholder',
+      ui = div(
+        id=id,
+        box(
+          width=12,
+          collapsible = TRUE,
+          title=paste0("# ", i),
+          textInput(getInputVarName(i), paste0("Input Name ", i), value=paste0("input_", i)),
+          fluidRow(
+            column(width=12,
+                   fluidRow(
+                     conditionalPanel(
+                       paste0("input.", getInputUseFileName(i), " == false"),
+                       column(width=6, textInput(getInputValName(i), "Value", value=0))
+                       ),
+                     column(width=6, checkboxInput(getInputUseFileName(i), "Use File"))
+                   ),
+                   conditionalPanel(
+                     paste0("input.", getInputUseFileName(i), " == true"),
+                     fluidRow(
+                       column(width=6, fileInput(getInputFileName(i), "File")),
+                       column(width=6, checkboxInput(getInputHeaderName(i), "Header"))
+                     )
+                   ))
+          )
+        )
+      )
+    )
+    inputUIs <<- c(inputUIs, id)
+  })
+  
+  observeEvent(input$hier_output_add, {
+    i <- length(outputUIs) + 1
+    id <- paste0("output_UI_", i)
+    insertUI(
+      selector = '#output_placeholder',
+      ui = div(
+        id=id,
+        box(
+          width=12,
+          collapsible = TRUE,
+          title=paste0("# ", i),
+          textInput(getOutputVarName(i), paste0("Output Name ", i), value=paste0("output_", i))
+        )
+      )
+    )
+    outputUIs <<- c(outputUIs, id)
+  })
+  
+  observeEvent(input$hier_clear, {
+    input_num <- length(inputUIs)
+    output_num <- length(outputUIs)
+    for (i in 1:input_num) {
+      removeUI(
+        ## pass in appropriate div id
+        selector = paste0('#', inputUIs[i])
+      )
+    }
+    for (i in 1:output_num) {
+      removeUI(
+        ## pass in appropriate div id
+        selector = paste0('#', outputUIs[i])
+      )
+    }
+    
+    inputUIs <<- c()
+    outputUIs <<- c()
+  })
+  
+  hier_plot <- NULL
+  
+  observeEvent(input$hier_generate, {
+    inputNum <- length(inputUIs)
+    outputNum <- length(outputUIs)
+    
+    inputNames <- c()
+    inputValues <- c()
+    input_value_pair <- list()
+    for (i in 1:inputNum) {
+      if (i > inputNum) break
+      name <- input[[getInputVarName(i)]]
+      inputNames <- c(inputNames, name)
+      flag <- input[[getInputUseFileName(i)]]
+      value <- 0
+      if (isTRUE(flag)) {
+        inFile <- input[[getInputFileName(i)]]
+        if (!is.null(inFile)) {
+          data <- read.csv(inFile$datapath, header=input[[getInputHeaderName(i)]])
+          value <- data[[1]]
+        }
+      } else {
+        value <- input[[getInputValName(i)]]
+      }
+      inputValues <- c(inputValues, value)
+      input_value_pair[[name]] <- value
+    }
+    outputNames <- c()
+    for (i in 1:outputNum) {
+      if (i > outputNum) break
+      outputNames <- c(outputNames, input[[getOutputVarName(i)]])
+    }
+    
+    # model.text <- input$hierachicaL_text
+    
+    # model.spec <- textConnection(model.text)
+
+    # model.jags <- jags.model(model.spec, data=input_value_pair)
+    
+    # size <- input$hier_sim_n
+    # thin <- input$hier_sim_thin
+    # burn <- input$burn * size
+    # thinEvery <- input$thin
+    set.seed(1)
+    
+    interactiveRender(outputNames)
+    # samps.coda <- coda.samples(model.jags, outputNames, n.iter=size, thin=thin)
+  
+    
+    # interactiveRenderer(samps.coda, outputNames)
+  })
+  
+  interactiveRender <- function(names) {
+    outputNum <- length(names)
+    
+    output$hier_plot_1 <- renderUI({
+      box(
+        collapsible = TRUE,
+        width=12,
+        renderPlot({plot(density(dgamma(seq(0,15,.1),1,1)))})
+      )
+    })
+    
+    output$hier_plots <- renderUI({
+      plot_output_list <- lapply(1:outputNum, function(i) {
+        plotname <- paste0("hier_plot_sub_", i)
+        uiOutput(plotname)
+      })
+      do.call(tagList, plot_output_list)
+    })
+    
+    for (i in 1:outputNum) {
+      local({
+        thisI <- i
+        plotname <- paste0("hier_plot_sub_", thisI)
+        output[[plotname]] <- renderUI({
+          box(
+            collapsible = TRUE,
+            width=12,
+            renderPlot({plot(density(dgamma(seq(0,15,.1),1,1)), main=paste(names[thisI]))})
+          )
+        })
+      })
+    }
+  }
+  
+  interactiveRenderer <- function(coda, names) {
+    outputNum <- length(names)
+    
+    output$hier_plot_1 <- renderUI({
+      box(
+        collapsible = TRUE,
+        width=12,
+        plotOutput(plot(coda[[1]][, names]))
+      )
+    })
+    
+    output$hier_plots <- renderUI({
+      plot_output_list <- lapply(1:outputNum, function(i) {
+        plotname <- paste0("hier_plot_sub_", i)
+        uiOutput(plotname)
+      })
+      do.call(tagList, plot_output_list)
+    })
+    
+    for (i in 1:outputNum) {
+      local({
+        thisI <- i
+        plotname <- paste0("hier_plot_sub_", thisI)
+        output[[plotname]] <- renderUI({
+          box(
+            collapsible = TRUE,
+            width=12,
+            plotOutput(
+              stationarity.plot(samps.coda[[1]][,names[thisI]],main=names[thisI])
+            )
+          )
+        })
+      })
+    }
+  }
 }
 
+if (F) {
+  box(
+    status="warning",
+    collapsible = TRUE, 
+    solidHeader = TRUE,
+    title = "Burning and Thining",
+    width=12,
+    fluidRow(
+      column(
+        width=6,
+        numericInput("burn", "Burning Percentage", min=0, max=1, value=0.75)
+      ),
+      column(
+        width=6,
+        numericInput("thin", "Thinning Every", min=0, value=5)
+      )
+    )
+  )
+}
 
 shinyAppDir(".")
 shinyApp(ui(), server)
+
+
+
+
