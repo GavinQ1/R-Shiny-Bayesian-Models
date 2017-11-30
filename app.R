@@ -277,7 +277,7 @@ hierachical_tab <- function() {
                       title="Input Variables",
                       solidHeader = TRUE,
                       tags$div(id = 'input_placeholder'),
-                      column(width=12, actionButton("hier_input_add", "Add", icon=icon("plus-square")))
+                      actionButton("hier_input_add", "Add", icon=icon("plus-square"))
                   ),
                   hr(),
                   box(width=12,
@@ -851,7 +851,7 @@ server <- function(input, output) {
               column(width=6,
                      numericInput(getOutputIndexRangeLower(i), "Lower Bound", min = 1, value = 2)),
               column(width=6,
-                     numericInput(getOutputIndexRangeUpper(i), "Upper Bound",min = 1, value = 100))
+                     numericInput(getOutputIndexRangeUpper(i), "Upper Bound",min = 1, value = 8))
             )
           ),
           div(actionButton(getOutputRemoveName(i), "Delete", icon=icon("close")),
@@ -995,7 +995,7 @@ server <- function(input, output) {
               box(
                 collapsible = TRUE,
                 width=12,
-                renderPlot({plot(density(coda[[1]][, lower : upper]),main=names[thisI])})
+                renderPlot({plot(density(coda[[1]][, lower : upper]),main=input[[getOutputVarName(thisI)]])})
               )
             })
           } else {
