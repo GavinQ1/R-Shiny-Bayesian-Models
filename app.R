@@ -1,5 +1,6 @@
 ## app.R ##
 library(shinydashboard)
+library(shinyjs)
 require(rjags)
 require(coda)
 
@@ -77,7 +78,7 @@ poisson_tab <- function() {
               status = "info",
               collapsible = TRUE, 
               solidHeader = TRUE,
-              title = "Prior Plot",
+              title = "Prior and Posterior Plot",
               plotOutput("poisson_plot"), width=12
               )
           )
@@ -404,6 +405,10 @@ getOutputIndexRangeLower <- function(i) {
 
 getOutputIndexRangeUpper <- function(i) {
   paste0("output_range_upper", i)
+}
+
+getPlotId <- function(i) {
+  paste0("hier_div_plot_", i)
 }
 
 # server 
@@ -865,6 +870,10 @@ server <- function(input, output) {
         ## pass in appropriate div id
         selector = paste0('#', id)
       )
+      removeUI(
+        ## pass in appropriate div id
+        selector = paste0('#', getPlotId(i))
+      )
       outputUIs[[i]] <<- F
       obslist[[getOutputRemoveName(i)]] <<- NULL
     }) 
@@ -873,34 +882,41 @@ server <- function(input, output) {
   })
   
   observeEvent(input$hier_clear, {
-    input_num <- length(inputUIs)
-    output_num <- length(outputUIs)
-    for (i in 1:input_num) {
-      removeUI(
-        ## pass in appropriate div id
-        selector = paste0('#', inputUIs[i])
-      )
+    for (i in 1:inputUI_id) {
+      if (i >= inputUI_id) break
+      if (isTRUE(inputUIs[[i]])) {
+        removeUI(
+          ## pass in appropriate div id
+          selector = paste0('#', paste0("input_UI_", i))
+        )
+      }
+      inputUIs[[i]] <<- F
     }
-    for (i in 1:output_num) {
-      removeUI(
-        ## pass in appropriate div id
-        selector = paste0('#', outputUIs[i])
-      )
+    for (i in 1:outputUI_id) {
+      if (i >= outputUI_id) break
+      if (isTRUE(outputUIs[[i]])) {
+        removeUI(
+          ## pass in appropriate div id
+          selector = paste0('#', paste0("output_UI_", i))
+        )
+        removeUI(
+          ## pass in appropriate div id
+          selector = paste0('#', getPlotId(i))
+        )
+      }
+      outputUIs[[i]] <<- F
     }
-    
-    inputUIs <<- c()
-    outputUIs <<- c()
   })
   
   observeEvent(input$hier_generate, {
-    inputNum <- length(inputUIs)
-    outputNum <- length(outputUIs)
+    inputNum <- inputUI_id
+    outputNum <- outputUI_id
     
     inputNames <- c()
     inputValues <- c()
     input_value_pair <- list()
     for (i in 1:inputNum) {
-      if (i > inputNum) break
+      if (i >= inputNum) break
       if (isTRUE(inputUIs[[i]])) {
         name <- input[[getInputVarName(i)]]
         inputNames <- c(inputNames, name)
@@ -922,7 +938,7 @@ server <- function(input, output) {
     }
     outputNames <- c()
     for (i in 1:outputNum) {
-      if (i > outputNum) break
+      if (i >= outputNum) break
       if (isTRUE(outputUIs[[i]])) {
         outputNames <- c(outputNames, input[[getOutputVarName(i)]])
       }
@@ -953,10 +969,10 @@ server <- function(input, output) {
   
   interactiveRenderer <- function(coda) {
     names <- c()
-    outputNum <- length(outputUIs)
+    outputNum <- outputUI_id
     
     for (i in 1:outputNum) {
-      if (i > outputNum) break
+      if (i >= outputNum) break
       if (isTRUE(outputUIs[[i]])) {
         if (!isTRUE(input[[getOutputUseIndexRange(i)]])) {
           names <- c(names, input[[getOutputVarName(i)]])
@@ -973,8 +989,7 @@ server <- function(input, output) {
         )
       })
     }
-    
-    
+   
     output$hier_plots <- renderUI({
       plot_output_list <- lapply(1:outputNum, function(i) {
         plotname <- paste0("hier_plot_sub_", i)
@@ -984,31 +999,39 @@ server <- function(input, output) {
     })
     
     for (i in 1:outputNum) {
+      
+      if (i >= outputNum) break
       local({
         thisI <- i
+        plotname <- paste0("hier_plot_sub_", thisI)
         if (isTRUE(outputUIs[[thisI]])) {
-          plotname <- paste0("hier_plot_sub_", thisI)
-          if (isTRUE(input[[getOutputUseIndexRange(i)]])) {
-            lower <- input[[getOutputIndexRangeLower(i)]]
-            upper <- input[[getOutputIndexRangeUpper(i)]]
+          if (isTRUE(input[[getOutputUseIndexRange(thisI)]])) {
+            lower <- input[[getOutputIndexRangeLower(thisI)]]
+            upper <- input[[getOutputIndexRangeUpper(thisI)]]
             output[[plotname]] <- renderUI({
-              box(
-                collapsible = TRUE,
-                width=12,
-                renderPlot({plot(density(coda[[1]][, lower : upper]),main=input[[getOutputVarName(thisI)]])})
+              div(
+                id=getPlotId(thisI),
+                box(
+                  collapsible = TRUE,
+                  width=12,
+                  renderPlot({plot(density(coda[[1]][, lower : upper]),main=input[[getOutputVarName(thisI)]])})
+                )
               )
             })
           } else {
             output[[plotname]] <- renderUI({
-              box(
-                collapsible = TRUE,
-                width=12,
-                renderPlot({plot(density(coda[[1]][, input[[getOutputVarName(i)]]]),main=names[thisI])})
+              div(
+                id=getPlotId(thisI),
+                box(
+                  collapsible = TRUE,
+                  width=12,
+                  renderPlot({plot(density(coda[[1]][, input[[getOutputVarName(thisI)]]]),main=input[[getOutputVarName(thisI)]])})
+                )
               )
             })
           }
-          
-          
+        } else {
+          output[[plotname]] <- renderUI({NULL})
         }
       })
     }
